@@ -5,6 +5,7 @@ const startButton = document.getElementById('startButton');
 // Variáveis globais
 let player;
 let bullets = [];
+let bossBullets = [];
 let enemies = [];
 let boss;
 let score = 0;
@@ -17,6 +18,7 @@ let enemyCount = 0;
 function startGame() {
     player = new Player();
     bullets = [];
+    bossBullets = [];
     enemies = [];
     score = 0;
     bossFight = false;
@@ -33,9 +35,10 @@ function startGame() {
 // Função para atualizar o jogo
 function update() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    updateEnemies(); // Atualiza os inimigos primeiro
+    updateEnemies();
     player.draw();
-    updateBullets(); // Atualiza as balas
+    updateBullets();
+    updateBossBullets();
 
     // Verifica se é hora de enfrentar o chefe
     if (enemyCount >= 10 && !bossFight) {
@@ -46,29 +49,26 @@ function update() {
 
     if (bossFight) {
         boss.draw();
-        bossShoot(); // Faz o chefe atirar
+        bossShoot();
     }
 
     ctx.fillStyle = 'white';
     ctx.fillText('Pontuação: ' + score, 10, 20);
 }
 
-// Função para atualizar as balas
+// Função para atualizar as balas do jogador
 function updateBullets() {
     for (let i = 0; i < bullets.length; i++) {
-        bullets[i].y -= 15; // Aumenta a velocidade da bala
+        bullets[i].y -= 15;
 
-        // Verifica se a bala saiu da tela
         if (bullets[i].y < 0) {
             bullets.splice(i, 1);
             i--;
-            continue; // Continue para a próxima iteração
+            continue;
         }
 
-        // Desenha a bala
         bullets[i].draw();
 
-        // Verifica colisão com inimigos
         for (let j = 0; j < enemies.length; j++) {
             if (bullets[i].collidesWith(enemies[j])) {
                 score += 10;
@@ -76,17 +76,15 @@ function updateBullets() {
                 enemies.splice(j, 1);
                 bullets.splice(i, 1);
                 i--;
-                break; // Sai do loop de colisão
+                break;
             }
         }
 
-        // Se o chefe estiver no jogo, verifica colisão com o chefe
         if (bossFight && bullets[i].collidesWith(boss)) {
-            boss.health -= 1; // O boss recebe 1 dano por tiro
+            boss.health -= 1;
             bullets.splice(i, 1);
             i--;
 
-            // Se o chefe for derrotado
             if (boss.health <= 0) {
                 alert('Você derrotou o chefe! Sua pontuação: ' + score);
                 clearInterval(game);
@@ -96,26 +94,48 @@ function updateBullets() {
     }
 }
 
-// Função para atualizar inimigos
+// Função para atualizar as balas do chefe
+function updateBossBullets() {
+    for (let i = 0; i < bossBullets.length; i++) {
+        bossBullets[i].x += bossBullets[i].dx;
+        bossBullets[i].y += bossBullets[i].dy;
+
+        // Remove a bala se ela sair da tela
+        if (bossBullets[i].x < 0 || bossBullets[i].x > canvas.width || bossBullets[i].y > canvas.height) {
+            bossBullets.splice(i, 1);
+            i--;
+            continue;
+        }
+
+        bossBullets[i].draw();
+
+        // Verifica colisão com o jogador
+        if (bossBullets[i].collidesWith(player)) {
+            clearInterval(game);
+            alert('Game Over! Você foi atingido pelo chefe.');
+            return;
+        }
+    }
+}
+
+// Função para atualizar os inimigos
 function updateEnemies() {
     for (let i = 0; i < enemies.length; i++) {
-        enemies[i].y += 2; // Move o inimigo para baixo
+        enemies[i].y += 2;
 
-        // Verifica se o inimigo saiu da tela
         if (enemies[i].y > canvas.height) {
             clearInterval(game);
             alert('Game Over! Sua pontuação: ' + score);
             return;
         }
 
-        // Verifica colisão com o jogador
         if (player.collidesWith(enemies[i])) {
             clearInterval(game);
             alert('Game Over! Sua pontuação: ' + score);
             return;
         }
 
-        enemies[i].draw(); // Certifique-se de desenhar os inimigos
+        enemies[i].draw();
     }
 }
 
@@ -127,9 +147,9 @@ function spawnEnemy() {
 
 // Função para o chefe atirar
 function bossShoot() {
-    if (Math.random() < 0.02) { // Chance de 2% de o boss atirar a cada frame
-        const bullet = new Bullet(boss.x + boss.width / 2 - 5, boss.y + boss.height); // Tamanho aumentado
-        bullets.push(bullet);
+    if (Math.random() < 0.05) { // Chance de 5% de atirar por frame
+        const bullet = new BossBullet(boss.x + boss.width / 2, boss.y + boss.height, player.x, player.y);
+        bossBullets.push(bullet);
     }
 }
 
@@ -141,7 +161,7 @@ class Player {
         this.width = 50;
         this.height = 50;
         this.image = new Image();
-        this.image.src = 'mario.png'; // Imagem da nave do jogador
+        this.image.src = 'mario.png';
     }
 
     draw() {
@@ -154,7 +174,7 @@ class Player {
     }
 
     shoot() {
-        const bullet = new Bullet(this.x + this.width / 2 - 25, this.y); // Tamanho da bala igual ao inimigo
+        const bullet = new Bullet(this.x + this.width / 2 - 25, this.y);
         bullets.push(bullet);
     }
 
@@ -168,25 +188,56 @@ class Player {
     }
 }
 
-// Classe da bala
+// Classe da bala do chefe
+class BossBullet {
+    constructor(x, y, targetX, targetY) {
+        this.x = x;
+        this.y = y;
+        this.width = 50;
+        this.height = 50;
+        this.speed = 6;
+
+        // Calcula a direção
+        const angle = Math.atan2(targetY - y, targetX - x);
+        this.dx = Math.cos(angle) * this.speed;
+        this.dy = Math.sin(angle) * this.speed;
+
+        this.image = new Image();
+        this.image.src = 'imposto.jpg';
+    }
+
+    draw() {
+        ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+    }
+
+    collidesWith(player) {
+        return (
+            this.x < player.x + player.width &&
+            this.x + this.width > player.x &&
+            this.y < player.y + player.height &&
+            this.y + this.height > player.y
+        );
+    }
+}
+
+// Classe da bala do jogador
 class Bullet {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.width = 50; // Tamanho da bala igual ao inimigo
-        this.height = 50; // Tamanho da bala igual ao inimigo
+        this.width = 50;
+        this.height = 50;
         this.image = new Image();
-        this.image.src = 'coco.jpg'; // Imagem da bala
+        this.image.src = 'coco.jpg';
 
-        // Carregar a imagem da bala antes de desenhar
         this.image.onload = () => {
-            this.imageLoaded = true; // Marca a imagem como carregada
+            this.imageLoaded = true;
         };
-        this.imageLoaded = false; // Inicializa como não carregada
+        this.imageLoaded = false;
     }
 
     draw() {
-        if (this.imageLoaded) { // Verifica se a imagem está carregada
+        if (this.imageLoaded) {
             ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
         }
     }
@@ -205,21 +256,20 @@ class Bullet {
 class Enemy {
     constructor() {
         this.x = Math.random() * (canvas.width - 50);
-        this.y = -50; // Começa fora da tela
+        this.y = -50;
         this.width = 50;
         this.height = 50;
         this.image = new Image();
-        this.image.src = 'lula.jpg'; // Imagem do inimigo
+        this.image.src = 'lula.jpg';
 
-        // Carregar a imagem do inimigo antes de desenhar
         this.image.onload = () => {
-            this.imageLoaded = true; // Marca a imagem como carregada
+            this.imageLoaded = true;
         };
-        this.imageLoaded = false; // Inicializa como não carregada
+        this.imageLoaded = false;
     }
 
     draw() {
-        if (this.imageLoaded) { // Verifica se a imagem está carregada
+        if (this.imageLoaded) {
             ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
         }
     }
@@ -232,29 +282,28 @@ class Boss {
         this.y = 50;
         this.width = 150;
         this.height = 150;
-        this.health = 50; // O chefe precisa de 50 tiros para ser derrotado
+        this.health = 50;
         this.image = new Image();
-        this.image.src = 'lula.jpg'; // Imagem do chefe
+        this.image.src = 'lula.jpg';
 
-        // Carregar a imagem do chefe antes de desenhar
         this.image.onload = () => {
-            this.imageLoaded = true; // Marca a imagem como carregada
+            this.imageLoaded = true;
         };
-        this.imageLoaded = false; // Inicializa como não carregada
+        this.imageLoaded = false;
     }
 
     draw() {
-        if (this.imageLoaded) { // Verifica se a imagem está carregada
+        if (this.imageLoaded) {
             ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
             ctx.fillStyle = 'red';
             ctx.fillRect(this.x, this.y - 10, this.width, 5);
             ctx.fillStyle = 'green';
-            ctx.fillRect(this.x, this.y - 10, (this.health / 50) * this.width, 5); // Barra de vida
+            ctx.fillRect(this.x, this.y - 10, (this.health / 50) * this.width, 5);
         }
     }
 }
 
-// Controle do teclado
+// Eventos de controle do jogador
 document.addEventListener('keydown', (event) => {
     if (event.key === 'ArrowLeft') {
         player.move('left');
